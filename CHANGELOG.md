@@ -9,8 +9,11 @@
 - Added owner guard for batch writes.
 - Added reconciliation guard that blocks non-zero statement differences by default.
 - Changed transaction amount validation to require positive values.
-- Added documentation for usage, architecture, statement schema, publishing, and security.
-- Added GitHub Actions CI on Node 22.
+- Added documentation for usage, architecture, statement schema, publishing, contribution, and security.
+- Added GitHub Actions CI on Node 22 plus repository safety checks.
+- Added Dependabot configuration for npm and GitHub Actions dependencies.
+- Added safe issue and pull request templates for public collaboration.
+- Added MIT License and public package metadata.
 - Kept MCP server support for compatible clients.
 
 ## 0.5.0

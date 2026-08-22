@@ -1,0 +1,27 @@
+{
+  "name": "avie-moneylover-mcp",
+  "version": "1.0.0",
+  "description": "Unofficial Money Lover MCP server and local batch bridge for safe statement imports",
+  "type": "module",
+  "main": "src/server.js",
+  "bin": {
+    "avie-moneylover-mcp": "./src/server.js"
+  },
+  "scripts": {
+    "start": "node ./src/server.js",
+    "test": "node --test",
+    "doctor": "node scripts/doctor.mjs",
+    "preview": "node scripts/batch.mjs preview",
+    "import": "node scripts/batch.mjs import",
+    "repo:check": "node scripts/repo-check.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.2",
+    "zod": "^3.23.8"
+  },
+  "private": true,
+  "license": "UNLICENSED"
+}

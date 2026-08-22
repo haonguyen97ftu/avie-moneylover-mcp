@@ -22,6 +22,23 @@
     "@modelcontextprotocol/sdk": "^1.20.2",
     "zod": "^3.23.8"
   },
-  "private": true,
-  "license": "UNLICENSED"
+  "keywords": [
+    "moneylover",
+    "mcp",
+    "model-context-protocol",
+    "personal-finance",
+    "bank-statement",
+    "transaction-import"
+  ],
+  "author": "haonguyen97ftu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haonguyen97ftu/avie-moneylover-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/haonguyen97ftu/avie-moneylover-mcp/issues"
+  },
+  "homepage": "https://github.com/haonguyen97ftu/avie-moneylover-mcp#readme",
+  "private": false,
+  "license": "MIT"
 }

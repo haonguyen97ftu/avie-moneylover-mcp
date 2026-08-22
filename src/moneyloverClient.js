@@ -316,7 +316,7 @@ export class MoneyloverClient {
     const effectiveCategoryId = ensureString(runtimeCategoryId || categoryId, 'runtimeCategoryId/categoryId');
     if (amount === undefined || amount === null || amount === '') throw new Error('amount is required');
     const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount < 0) throw new Error('amount must be a non-negative number');
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new Error('amount must be a positive number');
     const displayDate = ensureDateString(date);
 
     return this.#request('/transaction/add', {

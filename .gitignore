@@ -1,0 +1,20 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+
+# Local financial data and generated reports
+data/*.json
+!data/example-statement.json
+out/
+
+# Local runtime category IDs may reveal account-specific data
+config/runtime-category-overrides.json
+!config/runtime-category-overrides.example.json
+
+# Local helper files that may contain secrets
+scripts/session-env.local.cmd
+scripts/session-env.local.ps1

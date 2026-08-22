@@ -1,43 +1,54 @@
 # Avie Money Lover MCP / Local Bridge
 
+[![CI](https://github.com/haonguyen97ftu/avie-moneylover-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/haonguyen97ftu/avie-moneylover-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-green.svg)](https://nodejs.org/)
+
 Unofficial Money Lover integration for two workflows:
 
 1. **MCP server** — expose Money Lover read/write tools to an MCP-capable client.
-2. **GPT + local bridge** — let ChatGPT prepare/review statement JSON while your own Windows machine keeps the Money Lover token/cookie and performs the final import.
+2. **GPT + local bridge** — let ChatGPT prepare/review statement JSON while your own machine keeps the Money Lover token/cookie and performs the final import.
 
-> Money Lover does not publish this web API for third-party use. Endpoints, category behavior, authentication, and Cloudflare requirements may change without notice.
+> **Unofficial project.** This repository is not affiliated with, endorsed by, or sponsored by Money Lover. It uses web endpoints observed from the Money Lover web app. Those endpoints, authentication flows, category behavior, and anti-bot requirements can change without notice.
 
-## Current capabilities
+## What it can do
 
 - Read authenticated user info
-- List wallets
-- List wallet categories
+- List wallets and wallet categories
 - Read transactions by date range
 - Resolve Money Lover `user_category_v2` source IDs to runtime IDs using transaction history
 - Preview a single transaction without writing
-- Add one transaction with duplicate protection
-- Preview a statement batch
-- Reconcile expense − income against the statement balance
+- Add a transaction with duplicate protection
+- Preview a bank/card statement batch
+- Reconcile expense − income against a statement total
 - Flag exact duplicates, probable duplicates, unresolved categories, and review rows
-- Import sequentially only after explicit `IMPORT` confirmation
+- Import sequentially only after explicit confirmation
 - Verify created transactions by reading them back
-- Safe re-run after partial import: exact duplicates are skipped
+- Safely re-run after a partial import: exact duplicates are skipped
 
 ## Requirements
 
 - Windows 10/11, macOS, or Linux
 - Node.js **22+**
 - A Money Lover account you control
-- For reliable writes: a fresh **wallet-owner** session, `cf_clearance`/browser cookie if required, and the exact matching browser User-Agent
+- For reliable writes: a fresh **wallet-owner** session, current browser cookie/`cf_clearance` if required, and the matching browser User-Agent
 
-## Quick start on Windows
+## Quick start
+
+```bash
+git clone https://github.com/haonguyen97ftu/avie-moneylover-mcp.git
+cd avie-moneylover-mcp
+npm install
+npm test
+```
+
+### Windows helper setup
 
 ```cmd
-cd C:\path\to\avie-moneylover-mcp
 scripts\setup-windows.cmd
 ```
 
-Set credentials only in your current CMD session:
+Set credentials in the current shell only:
 
 ```cmd
 set "MONEYLOVER_ACCESS_TOKEN=YOUR_FRESH_OWNER_TOKEN"
@@ -45,28 +56,13 @@ set "MONEYLOVER_CF_CLEARANCE=YOUR_CURRENT_CF_CLEARANCE_VALUE"
 set "MONEYLOVER_USER_AGENT=YOUR_EXACT_BROWSER_USER_AGENT"
 ```
 
-Run the health check:
+Then run:
 
 ```cmd
 scripts\doctor.cmd
 ```
 
-For statement imports:
-
-```cmd
-scripts\preview.cmd data\your-statement.json
-scripts\import.cmd data\your-statement.json
-```
-
-The import command prints the preview again and requires you to type exactly:
-
-```text
-IMPORT
-```
-
-before any transaction is created.
-
-## Recommended GPT workflow
+## Recommended GPT + local workflow
 
 ```text
 Bank/card statement
@@ -86,7 +82,27 @@ Money Lover
 local verification report
 ```
 
-Do **not** paste Money Lover tokens, refresh tokens, browser cookies, or `cf_clearance` into ChatGPT. ChatGPT only needs the statement and the generated preview/result JSON.
+Do **not** paste Money Lover tokens, refresh tokens, passwords, browser cookies, or `cf_clearance` into ChatGPT, GitHub issues, logs, or screenshots. ChatGPT only needs the statement plus the generated preview/result JSON.
+
+### Preview a statement
+
+```cmd
+scripts\preview.cmd data\your-statement.json
+```
+
+### Import after review
+
+```cmd
+scripts\import.cmd data\your-statement.json
+```
+
+The importer requires you to type exactly:
+
+```text
+IMPORT
+```
+
+before writes begin.
 
 See [docs/HUONG_DAN_SU_DUNG.md](docs/HUONG_DAN_SU_DUNG.md) for the complete Vietnamese guide.
 
@@ -108,8 +124,9 @@ Observed endpoints:
 | `getTransactions(...)` | POST | `/api/transaction/list` |
 | `addTransaction(...)` | POST | `/api/transaction/add` |
 
-Writes may require browser-like headers and a current Cloudflare session. The project supports:
+Writes may require browser-like headers and a current Cloudflare session. Supported environment variables include:
 
+- `MONEYLOVER_ACCESS_TOKEN`
 - `MONEYLOVER_CF_CLEARANCE`
 - `MONEYLOVER_COOKIE`
 - `MONEYLOVER_USER_AGENT`
@@ -136,16 +153,16 @@ npm run import -- data\your-statement.json
 Optional flags:
 
 - `--allow-review` — include rows intentionally left in `review` after you inspect them
-- `--allow-mismatch` — bypass statement reconciliation protection; avoid unless you have a specific reason
-- `--allow-shared-wallet` — bypass the owner safety check; unsupported shared-wallet writes may still fail
-- `--confirm IMPORT` — non-interactive confirmation; not recommended for normal manual use
+- `--allow-mismatch` — bypass statement reconciliation protection; use only when you understand the discrepancy
+- `--allow-shared-wallet` — bypass the owner safety check; shared-wallet writes may still fail
+- `--confirm IMPORT` — non-interactive confirmation; not recommended for ordinary manual use
 
 ## Safety defaults
 
 The importer refuses to write when:
 
 - any row is `blocked`
-- any `review` row exists unless `--allow-review` is supplied
+- a `review` row exists unless `--allow-review` is supplied
 - the statement reconciliation difference is non-zero unless `--allow-mismatch` is supplied
 - the authenticated user is not the wallet owner unless `--allow-shared-wallet` is supplied
 - confirmation is not exactly `IMPORT`
@@ -154,7 +171,7 @@ Amounts must be positive numbers.
 
 ## Category v2
 
-Some accounts expose a source/template category ID from `/category/list`, while `/transaction/add` expects a different runtime category ID. The bridge learns the mapping from existing transactions.
+Some accounts expose a source/template category ID from `/category/list`, while `/transaction/add` expects a different runtime category ID. The bridge learns this mapping from existing transactions.
 
 If a category has never appeared in history, copy:
 
@@ -170,9 +187,9 @@ config/runtime-category-overrides.json
 
 and add the runtime ID observed from a real browser transaction request. The local override file is ignored by Git.
 
-## Personal data and GitHub
+## Public-repo safety
 
-This repository is prepared to be GitHub-safe by default:
+The repository is configured to avoid committing local financial data by default:
 
 - `data/*.json` is ignored except the sanitized example
 - `out/` is ignored
@@ -180,15 +197,22 @@ This repository is prepared to be GitHub-safe by default:
 - local runtime category overrides are ignored
 - local session helper files are ignored
 
-Before every push, still run a secret scan/search and inspect `git status`.
-
-## Tests
+Before pushing, run:
 
 ```cmd
+npm run repo:check
 npm test
 ```
 
-CI is included under `.github/workflows/ci.yml` and runs tests on Node 22.
+Then inspect `git status` manually.
+
+## Security
+
+If a token, password, refresh token, browser cookie, or `cf_clearance` value is ever exposed, treat it as compromised and rotate/revoke the session. See [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+Bug reports and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes. Never include real financial statements, account identifiers, tokens, or cookies in issues or test fixtures.
 
 ## Documentation
 
@@ -203,4 +227,4 @@ CI is included under `.github/workflows/ci.yml` and runs tests on Node 22.
 
 ## License
 
-The package is currently marked `UNLICENSED`. If you decide to make the repository public and want others to reuse the code, add an explicit open-source license first.
+MIT — see [LICENSE](LICENSE).

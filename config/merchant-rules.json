@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {"name":"Tâm Anh","contains":["108 HOANG NHU TIEP","TAM ANH"],"categoryName":"Khám sức khoẻ"},
+    {"name":"Long Châu","contains":["NHATHUOCLONGCHA","LONG CHAU"],"categoryName":"Sức khỏe"},
+    {"name":"Fujimart","contains":["ST 142 LE DUAN","FUJIMART"],"categoryName":"Đi chợ"},
+    {"name":"Supermarket","contains":["AEON VIETNAM","PAYOO-AEONMALL","WCM_WINMART","WINCOMMERCE"],"categoryName":"Đi chợ"},
+    {"name":"Fuel","contains":["PLX_","PETROLIMEX"],"categoryName":"Xăng xe"},
+    {"name":"Transport","contains":["GREEN SM","GRAB*","HANOI_METRO","HANOI METRO"],"categoryName":"Di chuyển"},
+    {"name":"Electricity","contains":["EVN"],"categoryName":"Hoá đơn điện"},
+    {"name":"Phone top-up","contains":["TKTT MOBILE BANKING","NAP THE"],"categoryName":"Hoá đơn điện thoại"},
+    {"name":"Shopping","contains":["SHOPEE","TIKTOK SHOP","THE GIOI DI DON"],"categoryName":"Mua sắm"}
+  ]
+}

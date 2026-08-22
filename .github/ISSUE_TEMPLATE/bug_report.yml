@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible problem without sharing financial or authentication secrets
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. **Do not paste access tokens, cookies, cf_clearance values, passwords, real statements, or personal financial data.** Replace identifiers with placeholders.
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: v1.0.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Windows 11, Node 22.XX
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use synthetic amounts/IDs and redact all secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove tokens, cookies, emails, wallet IDs, statements, account numbers, and other personal data before posting.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials and personal/financial data from this report.
+          required: true
+        - label: I ran `npm test` and `npm run repo:check` where applicable.
+          required: false

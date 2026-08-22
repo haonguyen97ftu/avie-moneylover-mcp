@@ -1,0 +1,41 @@
+{
+  "source": "Example bank statement",
+  "walletId": "REPLACE_WITH_YOUR_WALLET_ID",
+  "statement": {
+    "statementDate": "2026-08-31",
+    "statementBalance": 155000,
+    "expectedNet": 155000
+  },
+  "transactions": [
+    {
+      "key": "2026-08-25-supermarket-120000",
+      "date": "2026-08-25",
+      "postDate": "2026-08-26",
+      "amount": 120000,
+      "direction": "expense",
+      "merchant": "EXAMPLE SUPERMARKET",
+      "categoryName": "Đi chợ",
+      "note": "Example supermarket"
+    },
+    {
+      "key": "2026-08-26-transport-50000",
+      "date": "2026-08-26",
+      "postDate": "2026-08-27",
+      "amount": 50000,
+      "direction": "expense",
+      "merchant": "EXAMPLE RIDE",
+      "categoryName": "Di chuyển",
+      "note": "Example ride"
+    },
+    {
+      "key": "2026-08-28-refund-15000",
+      "date": "2026-08-28",
+      "postDate": "2026-08-28",
+      "amount": 15000,
+      "direction": "income",
+      "merchant": "EXAMPLE REFUND",
+      "categoryName": "Thu nhập khác",
+      "note": "Example refund"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/avie-moneylover/statement.schema.json",
+  "title": "Money Lover normalized statement",
+  "type": "object",
+  "required": ["transactions"],
+  "properties": {
+    "source": {"type": "string"},
+    "walletId": {"type": "string", "minLength": 1},
+    "statement": {
+      "type": "object",
+      "properties": {
+        "statementDate": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "expectedNet": {"type": "number"},
+        "statementBalance": {"type": "number"}
+      },
+      "additionalProperties": true
+    },
+    "transactions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["date", "amount"],
+        "properties": {
+          "key": {"type": "string"},
+          "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+          "postDate": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+          "amount": {"type": "number", "exclusiveMinimum": 0},
+          "direction": {"enum": ["expense", "income"]},
+          "merchant": {"type": "string"},
+          "categoryName": {"type": "string"},
+          "note": {"type": "string"},
+          "review": {"type": "boolean"}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

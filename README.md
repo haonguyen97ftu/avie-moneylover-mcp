@@ -1,13 +1,14 @@
-# Avie Money Lover MCP / Local Bridge
+# Avie Money Lover MCP — Cloud + Local Bridge
 
 [![CI](https://github.com/haonguyen97ftu/avie-moneylover-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/haonguyen97ftu/avie-moneylover-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-green.svg)](https://nodejs.org/)
 
-Unofficial Money Lover integration for two workflows:
+Unofficial Money Lover integration for three workflows:
 
-1. **MCP server** — expose Money Lover read/write tools to an MCP-capable client.
-2. **GPT + local bridge** — let ChatGPT prepare/review statement JSON while your own machine keeps the Money Lover token/cookie and performs the final import.
+1. **Private cloud MCP** — use the connector from ChatGPT on desktop and phone through one HTTPS endpoint.
+2. **Local MCP (stdio)** — connect from a compatible desktop client without publishing an endpoint.
+3. **GPT + local bridge** — let ChatGPT prepare/review statement JSON while your own machine performs the final import.
 
 > **Unofficial project.** This repository is not affiliated with, endorsed by, or sponsored by Money Lover. It uses web endpoints observed from the Money Lover web app. Those endpoints, authentication flows, category behavior, and anti-bot requirements can change without notice.
 
@@ -41,6 +42,20 @@ cd avie-moneylover-mcp
 npm install
 npm test
 ```
+
+## Private cloud MCP (recommended for phone use)
+
+This repository includes a stateless Streamable HTTP endpoint at `/mcp`, single-user OAuth with PKCE, a Dockerfile, and Railway configuration. Secrets stay in the host's environment variables and are never MCP tool arguments.
+
+Deploy and connect it using [the cloud deployment guide](docs/CLOUD_DEPLOYMENT.md). In short:
+
+1. Deploy this repository to Railway.
+2. Add the variables from `.env.example` in Railway; never commit their real values.
+3. Generate a public Railway domain and set `MCP_PUBLIC_URL` to that exact HTTPS origin.
+4. Add `https://YOUR-DOMAIN/mcp` as a custom connector in ChatGPT Developer mode.
+5. Authorize using `MCP_OWNER_PASSWORD` (not your Money Lover password).
+
+Once the connector is enabled for your ChatGPT account, it can be used by supported ChatGPT mobile clients too. Initial custom-connector setup is easiest in ChatGPT web.
 
 ### Windows helper setup
 
@@ -133,6 +148,9 @@ Writes may require browser-like headers and a current Cloudflare session. Suppor
 - `MONEYLOVER_TIMEOUT_MS`
 - `MONEYLOVER_CATEGORY_LOOKBACK_DAYS`
 - `MONEYLOVER_WRITE_DELAY_MS`
+- `MCP_PUBLIC_URL`
+- `MCP_AUTH_SECRET`
+- `MCP_OWNER_PASSWORD`
 
 ## Batch statement format
 
@@ -217,6 +235,7 @@ Bug reports and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIB
 ## Documentation
 
 - [Vietnamese usage guide](docs/HUONG_DAN_SU_DUNG.md)
+- [Cloud deployment and ChatGPT connection](docs/CLOUD_DEPLOYMENT.md)
 - [Statement JSON format](docs/STATEMENT_FORMAT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [GitHub publishing guide](docs/GITHUB_PUBLISH.md)

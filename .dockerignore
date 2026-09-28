@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+npm-debug.log*
+.env*
+data
+out
+test
+docs
+scripts
+prompts
+config/runtime-category-overrides.json

@@ -28,6 +28,15 @@ Use a wallet-owner session. Preview every batch before import. Do not bypass rec
 
 The project intentionally favors fail-closed behavior for transaction writes.
 
+## Public MCP deployment
+
+- Keep OAuth enabled for every internet-facing deployment. `MCP_AUTH_MODE=none` is only for isolated local testing and additionally requires `ALLOW_INSECURE_NO_AUTH=true`.
+- Use a unique `MCP_OWNER_PASSWORD` that is not your Money Lover password.
+- Generate `MCP_AUTH_SECRET` with at least 32 random characters.
+- Store all real values only in the cloud provider's secret-variable UI.
+- Do not share the public connector or owner password; this is a single-user service.
+- Rotate the OAuth secret and owner password if the deployment URL or account ownership changes.
+
 ## API stability
 
 Money Lover may change endpoints, authentication, category structures, or anti-bot behavior at any time. A successful unit test does not guarantee the private web API still behaves the same. Use `scripts/doctor.cmd` and a read-only preview before every important import session.

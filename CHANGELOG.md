@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 - 2026-09-28
+
+- Added a public Streamable HTTP MCP endpoint for ChatGPT web and mobile use.
+- Added single-user OAuth authorization-code flow with PKCE and dynamic client registration.
+- Removed login and token parameters from public MCP tools so secrets remain server-side.
+- Added statement preview/import MCP tools with expiring preview IDs and exact-input confirmation.
+- Added Docker and Railway deployment configuration plus health checks.
+- Added cloud deployment documentation and OAuth/HTTP/preview-store tests.
+
 ## 1.0.0 - 2026-08-22
 
 - Productionized the local GPT + Money Lover batch workflow.

@@ -1,28 +1,23 @@
 # Architecture
 
+The MCP can run over local stdio or public Streamable HTTP. The HTTP service is stateless at the protocol layer; only short-lived batch previews are held in memory. A restart invalidates pending preview IDs but does not lose committed Money Lover transactions.
+
 ```text
-Statement PDF/image
+ChatGPT web / mobile
+        │ HTTPS + OAuth/PKCE
+        v
+httpServer.js (/mcp)
         │
         v
-     ChatGPT
-        │ normalized JSON
+mcpServer.js ─── PreviewStore (30-minute TTL)
+        │
+        ├── batchWorkflow.js
+        │
         v
-┌─────────────────────┐
-│ batchWorkflow.js    │
-│ - validation        │
-│ - reconciliation    │
-│ - duplicate checks  │
-│ - category mapping  │
-└─────────┬───────────┘
-          │
-          v
-┌─────────────────────┐
-│ moneyloverClient.js │
-│ unofficial web API  │
-└─────────┬───────────┘
-          │
-          v
-      Money Lover
+moneyloverClient.js
+        │ unofficial web API
+        v
+Money Lover
 ```
 
 ## Modules
@@ -39,6 +34,14 @@ Pure workflow layer for statement normalization, merchant rules, category resolu
 
 Interactive CLI. Preview is read-only. Import requires explicit confirmation.
 
+### `src/mcpServer.js`
+
+Defines the read, preview, write, and batch tools. It exposes no login tool and accepts no token/password arguments. Writes require explicit literals (`ADD` or `IMPORT`) and wallet-owner validation.
+
+### `src/httpServer.js` and `src/oauth.js`
+
+Expose `/mcp` through Streamable HTTP and protect it with a single-user OAuth authorization-code flow using PKCE. The OAuth owner password is separate from Money Lover credentials.
+
 ### `src/server.js`
 
-MCP server exposing Money Lover operations for compatible MCP clients. The local GPT workflow does not require an MCP client.
+Local stdio entrypoint for compatible MCP clients.

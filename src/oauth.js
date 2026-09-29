@@ -70,11 +70,12 @@ function html(res, status, body) {
 }
 
 export class SingleUserOAuth {
-  constructor({ publicUrl, secret, ownerPassword, now = () => Date.now() } = {}) {
+  constructor({ publicUrl, secret, ownerPassword, now = () => Date.now(), logger = console } = {}) {
     this.publicUrl = String(publicUrl ?? '').replace(/\/$/, '');
     this.secret = String(secret ?? '');
     this.ownerPassword = String(ownerPassword ?? '');
     this.now = now;
+    this.logger = logger;
     this.issuedAuthorizationCodes = new Map();
     this.activeRefreshTokens = new Map();
     this.failedAuthorizationAttempts = [];
@@ -240,6 +241,7 @@ export class SingleUserOAuth {
   authorizationServerMetadata() {
     return {
       issuer: this.publicUrl,
+      authorization_response_iss_parameter_supported: true,
       authorization_endpoint: `${this.publicUrl}/oauth/authorize`,
       token_endpoint: `${this.publicUrl}/oauth/token`,
       registration_endpoint: `${this.publicUrl}/oauth/register`,
@@ -249,6 +251,20 @@ export class SingleUserOAuth {
       token_endpoint_auth_methods_supported: ['none'],
       scopes_supported: [READ_SCOPE, WRITE_SCOPE],
     };
+  }
+
+  redirectAuthorizationResponse(res, redirectUri, params) {
+    const redirect = new URL(redirectUri);
+    for (const [key, value] of Object.entries(params)) {
+      if (value) redirect.searchParams.set(key, value);
+    }
+    redirect.searchParams.set('iss', this.publicUrl);
+    res.writeHead(302, {
+      Location: redirect.toString(),
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+    });
+    res.end();
   }
 
   challengeHeader() {
@@ -293,17 +309,28 @@ export class SingleUserOAuth {
       return true;
     }
     if (url.pathname === '/oauth/authorize' && req.method === 'POST') {
+      let form;
       try {
-        const form = await readForm(req);
+        form = await readForm(req);
         const code = this.issueAuthorizationCode(form, form.get('owner_password'));
-        const redirect = new URL(form.get('redirect_uri'));
-        redirect.searchParams.set('code', code);
-        if (form.get('state')) redirect.searchParams.set('state', form.get('state'));
-        redirect.searchParams.set('iss', this.publicUrl);
-        res.writeHead(302, { Location: redirect.toString(), 'Cache-Control': 'no-store' });
-        res.end();
+        this.logger.info?.('[oauth] authorization_succeeded');
+        this.redirectAuthorizationResponse(res, form.get('redirect_uri'), {
+          code,
+          state: form.get('state'),
+        });
       } catch (error) {
-        html(res, 401, `<h1>Authorization failed</h1><p>${escapeHtml(error.message)}</p>`);
+        this.logger.warn?.('[oauth] authorization_failed');
+        try {
+          if (!form) throw error;
+          const { redirectUri } = this.validateAuthorization(form);
+          this.redirectAuthorizationResponse(res, redirectUri, {
+            error: 'access_denied',
+            error_description: 'Owner authorization was not accepted',
+            state: form.get('state'),
+          });
+        } catch {
+          html(res, 400, '<h1>Authorization failed</h1><p>The authorization request is invalid or expired. Return to ChatGPT and connect again.</p>');
+        }
       }
       return true;
     }

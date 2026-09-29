@@ -42,12 +42,13 @@ export function createHttpServer({
   authSecret = process.env.MCP_AUTH_SECRET,
   ownerPassword = process.env.MCP_OWNER_PASSWORD,
   previewStore = new PreviewStore(),
+  logger = console,
 } = {}) {
   if (!['oauth', 'none'].includes(authMode)) throw new Error('MCP_AUTH_MODE must be oauth or none');
   if (authMode === 'none' && process.env.ALLOW_INSECURE_NO_AUTH !== 'true') {
     throw new Error('Unauthenticated mode requires ALLOW_INSECURE_NO_AUTH=true and must only be used locally.');
   }
-  const oauth = authMode === 'oauth' ? new SingleUserOAuth({ publicUrl, secret: authSecret, ownerPassword }) : null;
+  const oauth = authMode === 'oauth' ? new SingleUserOAuth({ publicUrl, secret: authSecret, ownerPassword, logger }) : null;
 
   return http.createServer(async (req, res) => {
     const origin = publicUrl || `http://${req.headers.host || 'localhost'}`;

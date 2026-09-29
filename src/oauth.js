@@ -73,7 +73,10 @@ export class SingleUserOAuth {
   constructor({ publicUrl, secret, ownerPassword, now = () => Date.now(), logger = console } = {}) {
     this.publicUrl = String(publicUrl ?? '').replace(/\/$/, '');
     this.secret = String(secret ?? '');
-    this.ownerPassword = String(ownerPassword ?? '');
+    // Railway's variable UI and mobile password managers can add surrounding
+    // whitespace while copying. Owner passwords never intentionally depend on
+    // leading/trailing whitespace, so normalize both sides of the comparison.
+    this.ownerPassword = String(ownerPassword ?? '').trim();
     this.now = now;
     this.logger = logger;
     this.issuedAuthorizationCodes = new Map();
@@ -163,7 +166,7 @@ export class SingleUserOAuth {
     const cutoff = this.now() - 15 * 60 * 1000;
     this.failedAuthorizationAttempts = this.failedAuthorizationAttempts.filter((attempt) => attempt > cutoff);
     if (this.failedAuthorizationAttempts.length >= 10) throw new Error('Too many authorization attempts. Try again in 15 minutes.');
-    if (!secureEqual(password, this.ownerPassword)) {
+    if (!secureEqual(String(password ?? '').trim(), this.ownerPassword)) {
       this.failedAuthorizationAttempts.push(this.now());
       throw new Error('Incorrect owner password');
     }
@@ -267,6 +270,18 @@ export class SingleUserOAuth {
     res.end();
   }
 
+  renderAuthorizationForm(res, params, { status = 200, error = null } = {}) {
+    const { client, redirectUri } = this.validateAuthorization(params);
+    const fields = [...params.entries()]
+      .filter(([key]) => key !== 'owner_password')
+      .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}">`)
+      .join('\n');
+    const errorMessage = error
+      ? `<div class="error" role="alert">${escapeHtml(error)}</div>`
+      : '';
+    html(res, status, `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Money Lover</title><style>body{font-family:system-ui;max-width:420px;margin:48px auto;padding:0 20px;color:#172033}label,input,button{display:block;width:100%;box-sizing:border-box}input{padding:12px;margin:8px 0 18px;border:1px solid #ccd2dc;border-radius:10px}button{padding:12px;border:0;border-radius:10px;background:#137333;color:white;font-weight:700}.note{color:#596579;font-size:14px}.error{margin:16px 0;padding:12px;border-radius:10px;background:#fff1f0;color:#a61b1b;font-weight:650}</style></head><body><h1>Connect Avie Money Lover</h1><p><strong>${escapeHtml(client.client_name)}</strong> requests read and confirmed-write access to your private Money Lover connector.</p><p class="note">After approval, the browser returns to ${escapeHtml(new URL(redirectUri).hostname)}.</p>${errorMessage}<form method="post" action="${escapeHtml(`${this.publicUrl}/oauth/authorize`)}">${fields}<label>Owner password<input name="owner_password" type="password" required autocomplete="current-password" autocapitalize="none" spellcheck="false" enterkeyhint="go"></label><button type="submit">Authorize</button></form><p class="note">Paste the exact <strong>MCP_OWNER_PASSWORD</strong> value from Railway Variables. This is not your Money Lover or ChatGPT password.</p></body></html>`);
+  }
+
   challengeHeader() {
     return `Bearer resource_metadata="${this.publicUrl}/.well-known/oauth-protected-resource", scope="${DEFAULT_SCOPES}"`;
   }
@@ -298,11 +313,7 @@ export class SingleUserOAuth {
     }
     if (url.pathname === '/oauth/authorize' && req.method === 'GET') {
       try {
-        const { client, redirectUri } = this.validateAuthorization(url.searchParams);
-        const fields = [...url.searchParams.entries()]
-          .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}">`)
-          .join('\n');
-        html(res, 200, `<!doctype html><html><head><meta name="viewport" content="width=device-width"><title>Connect Money Lover</title><style>body{font-family:system-ui;max-width:420px;margin:48px auto;padding:0 20px;color:#172033}label,input,button{display:block;width:100%;box-sizing:border-box}input{padding:12px;margin:8px 0 18px;border:1px solid #ccd2dc;border-radius:10px}button{padding:12px;border:0;border-radius:10px;background:#137333;color:white;font-weight:700}.note{color:#596579;font-size:14px}</style></head><body><h1>Connect Avie Money Lover</h1><p><strong>${escapeHtml(client.client_name)}</strong> requests read and confirmed-write access to your private Money Lover connector.</p><p class="note">After approval, the browser returns to ${escapeHtml(new URL(redirectUri).hostname)}.</p><form method="post" action="/oauth/authorize">${fields}<label>Owner password<input name="owner_password" type="password" required autocomplete="current-password"></label><button type="submit">Authorize</button></form><p class="note">This is the MCP owner password, not your Money Lover password.</p></body></html>`);
+        this.renderAuthorizationForm(res, url.searchParams);
       } catch (error) {
         html(res, 400, `<h1>Invalid authorization request</h1><p>${escapeHtml(error.message)}</p>`);
       }
@@ -319,15 +330,21 @@ export class SingleUserOAuth {
           state: form.get('state'),
         });
       } catch (error) {
-        this.logger.warn?.('[oauth] authorization_failed');
+        const reason = error.message === 'Incorrect owner password'
+          ? 'incorrect_password'
+          : error.message.startsWith('Too many authorization attempts')
+            ? 'rate_limited'
+            : 'invalid_request';
+        this.logger.warn?.(`[oauth] authorization_failed reason=${reason}`);
         try {
           if (!form) throw error;
-          const { redirectUri } = this.validateAuthorization(form);
-          this.redirectAuthorizationResponse(res, redirectUri, {
-            error: 'access_denied',
-            error_description: 'Owner authorization was not accepted',
-            state: form.get('state'),
-          });
+          this.validateAuthorization(form);
+          const message = reason === 'incorrect_password'
+            ? 'Incorrect owner password. Copy MCP_OWNER_PASSWORD from Railway Variables and try again.'
+            : reason === 'rate_limited'
+              ? 'Too many incorrect attempts. Wait 15 minutes and try again.'
+              : 'The authorization request is invalid or expired. Return to ChatGPT and connect again.';
+          this.renderAuthorizationForm(res, form, { status: reason === 'rate_limited' ? 429 : 401, error: message });
         } catch {
           html(res, 400, '<h1>Authorization failed</h1><p>The authorization request is invalid or expired. Return to ChatGPT and connect again.</p>');
         }

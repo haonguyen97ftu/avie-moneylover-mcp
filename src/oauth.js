@@ -58,12 +58,15 @@ function json(res, status, payload, extraHeaders = {}) {
   res.end(body);
 }
 
-function html(res, status, body) {
+function html(res, status, body, redirectOrigin = null) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    // Chromium applies form-action to the redirect after POST as well.
+    // Only the callback origin from a validated OAuth request may be added.
+    'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${redirectOrigin ? ` ${redirectOrigin}` : ''}; base-uri 'none'; frame-ancestors 'none'`,
+    'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
   });
   res.end(body);
@@ -279,7 +282,7 @@ export class SingleUserOAuth {
     const errorMessage = error
       ? `<div class="error" role="alert">${escapeHtml(error)}</div>`
       : '';
-    html(res, status, `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Money Lover</title><style>body{font-family:system-ui;max-width:420px;margin:48px auto;padding:0 20px;color:#172033}label,input,button{display:block;width:100%;box-sizing:border-box}input{padding:12px;margin:8px 0 18px;border:1px solid #ccd2dc;border-radius:10px}button{padding:12px;border:0;border-radius:10px;background:#137333;color:white;font-weight:700}.note{color:#596579;font-size:14px}.error{margin:16px 0;padding:12px;border-radius:10px;background:#fff1f0;color:#a61b1b;font-weight:650}</style></head><body><h1>Connect Avie Money Lover</h1><p><strong>${escapeHtml(client.client_name)}</strong> requests read and confirmed-write access to your private Money Lover connector.</p><p class="note">After approval, the browser returns to ${escapeHtml(new URL(redirectUri).hostname)}.</p>${errorMessage}<form method="post" action="${escapeHtml(`${this.publicUrl}/oauth/authorize`)}">${fields}<label>Owner password<input name="owner_password" type="password" required autocomplete="current-password" autocapitalize="none" spellcheck="false" enterkeyhint="go"></label><button type="submit">Authorize</button></form><p class="note">Paste the exact <strong>MCP_OWNER_PASSWORD</strong> value from Railway Variables. This is not your Money Lover or ChatGPT password.</p></body></html>`);
+    html(res, status, `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Money Lover</title><style>body{font-family:system-ui;max-width:420px;margin:48px auto;padding:0 20px;color:#172033}label,input,button{display:block;width:100%;box-sizing:border-box}input{padding:12px;margin:8px 0 18px;border:1px solid #ccd2dc;border-radius:10px}button{padding:12px;border:0;border-radius:10px;background:#137333;color:white;font-weight:700}.note{color:#596579;font-size:14px}.error{margin:16px 0;padding:12px;border-radius:10px;background:#fff1f0;color:#a61b1b;font-weight:650}</style></head><body><h1>Connect Avie Money Lover</h1><p><strong>${escapeHtml(client.client_name)}</strong> requests read and confirmed-write access to your private Money Lover connector.</p><p class="note">After approval, the browser returns to ${escapeHtml(new URL(redirectUri).hostname)}.</p>${errorMessage}<form method="post" action="${escapeHtml(`${this.publicUrl}/oauth/authorize`)}">${fields}<label>Owner password<input name="owner_password" type="password" required autocomplete="current-password" autocapitalize="none" spellcheck="false" enterkeyhint="go"></label><button type="submit">Authorize</button></form><p class="note">Paste the exact <strong>MCP_OWNER_PASSWORD</strong> value from Railway Variables. This is not your Money Lover or ChatGPT password.</p></body></html>`, new URL(redirectUri).origin);
   }
 
   challengeHeader() {

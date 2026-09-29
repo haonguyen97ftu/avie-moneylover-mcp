@@ -60,6 +60,12 @@ test('OAuth browser flow advertises and returns issuer identification', async (t
     owner_password: '  a-very-long-owner-password\n',
   });
 
+  const consent = await fetch(`${base}/oauth/authorize?${authorization}`);
+  assert.equal(consent.status, 200);
+  assert.match(consent.headers.get('content-security-policy'), /form-action 'self' https:\/\/chatgpt\.com;/);
+  assert.equal(consent.headers.get('referrer-policy'), 'no-referrer');
+  assert.doesNotMatch(await consent.text(), /name="owner_password" value=/);
+
   const approved = await fetch(`${base}/oauth/authorize`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -82,6 +88,7 @@ test('OAuth browser flow advertises and returns issuer identification', async (t
     redirect: 'manual',
   });
   assert.equal(denied.status, 401);
+  assert.match(denied.headers.get('content-security-policy'), /form-action 'self' https:\/\/chatgpt\.com;/);
   assert.equal(denied.headers.get('location'), null);
   const deniedHtml = await denied.text();
   assert.match(deniedHtml, /Incorrect owner password/);

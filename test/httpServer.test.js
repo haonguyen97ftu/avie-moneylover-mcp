@@ -57,7 +57,7 @@ test('OAuth browser flow advertises and returns issuer identification', async (t
     code_challenge: 'challenge',
     resource: 'https://mcp.example.test',
     state: 'opaque-state',
-    owner_password: 'a-very-long-owner-password',
+    owner_password: '  a-very-long-owner-password\n',
   });
 
   const approved = await fetch(`${base}/oauth/authorize`, {
@@ -81,10 +81,11 @@ test('OAuth browser flow advertises and returns issuer identification', async (t
     body: authorization,
     redirect: 'manual',
   });
-  assert.equal(denied.status, 302);
-  const deniedLocation = new URL(denied.headers.get('location'));
-  assert.equal(deniedLocation.searchParams.get('error'), 'access_denied');
-  assert.equal(deniedLocation.searchParams.get('state'), 'opaque-state');
-  assert.equal(deniedLocation.searchParams.get('iss'), 'https://mcp.example.test');
-  assert.deepEqual(events, ['[oauth] authorization_succeeded', '[oauth] authorization_failed']);
+  assert.equal(denied.status, 401);
+  assert.equal(denied.headers.get('location'), null);
+  const deniedHtml = await denied.text();
+  assert.match(deniedHtml, /Incorrect owner password/);
+  assert.match(deniedHtml, /MCP_OWNER_PASSWORD/);
+  assert.doesNotMatch(deniedHtml, /value="wrong-password"/);
+  assert.deepEqual(events, ['[oauth] authorization_succeeded', '[oauth] authorization_failed reason=incorrect_password']);
 });

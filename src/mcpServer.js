@@ -92,6 +92,54 @@ function compactTransaction(tx) {
   };
 }
 
+function valueType(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+function collectScalarPaths(value, prefix = '', depth = 0, result = []) {
+  if (depth > 3 || value === null || value === undefined) return result;
+  if (typeof value === 'string' || typeof value === 'number') {
+    result.push({ path: prefix, value: String(value) });
+    return result;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 3)) collectScalarPaths(item, `${prefix}[]`, depth + 1, result);
+    return result;
+  }
+  if (typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      collectScalarPaths(item, prefix ? `${prefix}.${key}` : key, depth + 1, result);
+    }
+  }
+  return result;
+}
+
+export function buildIdentityDiagnostics(user, wallet) {
+  const walletOwner = wallet?.owner;
+  const userId = user?._id;
+  const userScalars = collectScalarPaths(user);
+  const walletScalars = collectScalarPaths(wallet);
+  return {
+    currentRule: {
+      walletPath: 'owner',
+      userPath: '_id',
+      walletType: valueType(walletOwner),
+      userType: valueType(userId),
+      matches: walletOwner === userId,
+    },
+    walletOwnerMatchesUserPaths: walletOwner === null || walletOwner === undefined
+      ? []
+      : userScalars.filter((entry) => entry.value === String(walletOwner)).map((entry) => entry.path),
+    userIdMatchesWalletPaths: userId === null || userId === undefined
+      ? []
+      : walletScalars.filter((entry) => entry.value === String(userId)).map((entry) => entry.path),
+    userFields: Object.fromEntries(Object.entries(user ?? {}).map(([key, value]) => [key, valueType(value)])),
+    walletFields: Object.fromEntries(Object.entries(wallet ?? {}).map(([key, value]) => [key, valueType(value)])),
+  };
+}
+
 const statementInput = {
   walletId: z.string().min(1),
   source: z.string().max(200).optional(),
@@ -210,7 +258,12 @@ export function createMoneyloverMcpServer({ previewStore = new PreviewStore() } 
     const [user, wallets] = await Promise.all([client.getUserInfo(), client.getWallets()]);
     const wallet = (wallets ?? []).find((item) => item?._id === walletId || item?.id === walletId);
     if (!wallet) throw new Error(`Wallet ${walletId} is not accessible`);
-    return { categoryV2: user?.tags?.includes('user_category_v2') ?? false, wallet: { id: walletId, name: wallet.name, isOwner: wallet.owner === user?._id }, browserWrite: client.getBrowserWriteStatus() };
+    return {
+      categoryV2: user?.tags?.includes('user_category_v2') ?? false,
+      wallet: { id: walletId, name: wallet.name, isOwner: wallet.owner === user?._id },
+      identityDiagnostics: buildIdentityDiagnostics(user, wallet),
+      browserWrite: client.getBrowserWriteStatus(),
+    };
   }), 'Write context checked'));
 
   register('preview_statement', {

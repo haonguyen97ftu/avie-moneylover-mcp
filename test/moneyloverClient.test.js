@@ -52,6 +52,51 @@ test('addTransaction mirrors observed browser write request', async () => {
   });
 });
 
+test('editTransaction preserves transaction fields and uses the observed edit endpoint', async () => {
+  let call;
+  global.fetch = async (url, init) => { call = { url: String(url), init }; return response({ error: 0, data: { _id: 'tx-1' } }); };
+  const client = new MoneyloverClient(fakeJwt(), { browserCookie: 'cf_clearance=abc', userAgent: 'UA-test' });
+  await client.editTransaction({
+    walletId: 'wallet-123',
+    runtimeCategoryId: 'runtime-family',
+    transaction: {
+      _id: 'tx-1',
+      account: { _id: 'wallet-123' },
+      category: { _id: 'runtime-shopping' },
+      amount: -1348760,
+      note: 'Bỉm + sữa Mầm',
+      displayDate: '2026-09-15T00:00:00.000Z',
+      with: ['Family'],
+      campaign: [{ _id: 'event-1' }],
+      exclude_report: true,
+      longtitude: 1,
+      latitude: 2,
+      address: JSON.stringify({ name: 'Home', details: 'Detail', icon: 'home' }),
+      images: ['receipt.jpg'],
+      remind: '2026-09-15T08:00:00.000Z',
+      parent: { _id: 'parent-1' },
+    },
+  });
+  assert.equal(call.url, 'https://web.moneylover.me/api/transaction/edit');
+  assert.equal(call.init.headers.dataformat, 'json');
+  assert.equal(call.init.headers.Referer, 'https://web.moneylover.me/wallet/wallet-123');
+  assert.deepEqual(JSON.parse(call.init.body), {
+    _id: 'tx-1', with: ['Family'], account: 'wallet-123', category: 'runtime-family', amount: 1348760,
+    note: 'Bỉm + sữa Mầm', displayDate: '2026-09-15', event: 'event-1', exclude_report: true,
+    longtitude: 1, latitude: 2, addressName: 'Home', addressDetails: 'Detail', addressIcon: 'home',
+    remind: '2026-09-15T08:00:00.000Z', image: 'receipt.jpg', parent: 'parent-1',
+  });
+});
+
+test('editTransaction blocks cross-wallet payloads before the request', async () => {
+  global.fetch = async () => { throw new Error('must not call fetch'); };
+  const client = new MoneyloverClient(fakeJwt());
+  await assert.rejects(() => client.editTransaction({
+    walletId: 'wallet-1', runtimeCategoryId: 'runtime-family',
+    transaction: { _id: 'tx-1', account: { _id: 'wallet-2' }, amount: -1, displayDate: '2026-09-15' },
+  }), /does not match walletId/);
+});
+
 test('runtime category map learns v2 source->runtime ids from transaction history', async () => {
   global.fetch = async (url) => {
     if (String(url).endsWith('/transaction/list')) return response({ error: 0, data: { transactions: [{

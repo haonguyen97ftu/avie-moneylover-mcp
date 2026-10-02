@@ -3,6 +3,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createMoneyloverMcpServer } from './mcpServer.js';
 import { SingleUserOAuth } from './oauth.js';
 import { PreviewStore } from './previewStore.js';
+import { UpdatePreviewStore } from './updatePreviewStore.js';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -42,6 +43,7 @@ export function createHttpServer({
   authSecret = process.env.MCP_AUTH_SECRET,
   ownerPassword = process.env.MCP_OWNER_PASSWORD,
   previewStore = new PreviewStore(),
+  updatePreviewStore = new UpdatePreviewStore(),
   logger = console,
 } = {}) {
   if (!['oauth', 'none'].includes(authMode)) throw new Error('MCP_AUTH_MODE must be oauth or none');
@@ -102,7 +104,7 @@ export function createHttpServer({
       const parsedBody = req.method === 'POST' ? await readJsonBody(req) : undefined;
       req.auth = auth;
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-      const mcp = createMoneyloverMcpServer({ previewStore });
+      const mcp = createMoneyloverMcpServer({ previewStore, updatePreviewStore });
       await mcp.connect(transport);
       try { await transport.handleRequest(req, res, parsedBody); }
       finally { await transport.close(); }

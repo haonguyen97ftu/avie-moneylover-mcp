@@ -66,7 +66,7 @@ test('preview and apply update tolerate Money Lover empty-address normalization'
   assert.equal(client.editCalls, 1);
 });
 
-test('post-write verification reports only privacy-safe changed field names', async () => {
+
   const client = fakeClient();
   client.setEditOverrides({ note: 'server-normalized-note' });
   const { plan } = await previewTransactionUpdate(client, {

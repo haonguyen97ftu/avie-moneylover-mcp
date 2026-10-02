@@ -24,6 +24,7 @@ function fixtureTransaction(overrides = {}) {
 function fakeClient() {
   let transaction = fixtureTransaction();
   let editCalls = 0;
+  let editOverrides = {};
   return {
     async getUserInfo() { return { _id: 'user-1' }; },
     async getWallets() { return [{ _id: 'wallet-1', owner: 'user-1', name: 'Tiền mặt' }]; },
@@ -33,15 +34,21 @@ function fakeClient() {
     },
     async editTransaction({ runtimeCategoryId }) {
       editCalls += 1;
-      transaction = fixtureTransaction({ category: { _id: runtimeCategoryId, name: 'Gia đình', categories: ['source-family'] } });
+      transaction = fixtureTransaction({
+        category: { _id: runtimeCategoryId, name: 'Gia đình', categories: ['source-family'] },
+        // The real API normalizes an empty address to this equivalent shape.
+        address: JSON.stringify({ name: '', details: '', icon: '' }),
+        ...editOverrides,
+      });
       return structuredClone(transaction);
     },
     setTransaction(value) { transaction = structuredClone(value); },
+    setEditOverrides(value) { editOverrides = structuredClone(value); },
     get editCalls() { return editCalls; },
   };
 }
 
-test('preview and apply update preserve the transaction and verify the target category', async () => {
+test('preview and apply update tolerate Money Lover empty-address normalization', async () => {
   const client = fakeClient();
   const { plan, preview } = await previewTransactionUpdate(client, {
     walletId: 'wallet-1', transactionId: 'tx-1', date: '2026-09-15', categoryName: 'Gia đình',
@@ -57,6 +64,16 @@ test('preview and apply update preserve the transaction and verify the target ca
   assert.equal(result.updated, true);
   assert.equal(result.transaction.category, 'Gia đình');
   assert.equal(client.editCalls, 1);
+});
+
+test('post-write verification reports only privacy-safe changed field names', async () => {
+  const client = fakeClient();
+  client.setEditOverrides({ note: 'server-normalized-note' });
+  const { plan } = await previewTransactionUpdate(client, {
+    walletId: 'wallet-1', transactionId: 'tx-1', date: '2026-09-15', categoryName: 'Gia đình',
+  });
+
+  await assert.rejects(() => applyTransactionUpdate(client, plan), /fields changed \(note\)/);
 });
 
 test('apply blocks a transaction changed after preview without writing', async () => {

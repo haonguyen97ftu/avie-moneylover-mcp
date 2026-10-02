@@ -43,11 +43,23 @@ function normalizedAddress(transaction) {
     try { address = JSON.parse(address); } catch { return { raw: address }; }
   }
   if (!address || typeof address !== 'object') return {};
-  return {
+  const normalized = {
     name: address.name ?? '',
     details: address.details ?? '',
     icon: address.icon ?? '',
   };
+  // Money Lover rewrites an empty address from "" to an object containing
+  // empty strings when a transaction is edited. Treat those wire formats as
+  // the same value so a category-only update is not reported as corruption.
+  return Object.values(normalized).every((value) => value === '') ? {} : normalized;
+}
+
+function changedFingerprintFields(before, after) {
+  const previous = JSON.parse(before);
+  const current = JSON.parse(after);
+  return [...new Set([...Object.keys(previous), ...Object.keys(current)])]
+    .filter((key) => JSON.stringify(previous[key]) !== JSON.stringify(current[key]))
+    .sort();
 }
 
 function transactionFingerprint(transaction, { includeCategory = true } = {}) {
@@ -155,8 +167,10 @@ export async function applyTransactionUpdate(client, plan) {
 
   const updated = await loadTransaction(client, plan.walletId, plan.date, plan.transactionId);
   if (!hasTargetCategory(updated, plan.target)) throw new Error('Update verification failed: target category was not observed');
-  if (transactionFingerprint(updated, { includeCategory: false }) !== plan.baseFingerprint) {
-    throw new Error('Update verification failed: a non-category transaction field changed');
+  const updatedBaseFingerprint = transactionFingerprint(updated, { includeCategory: false });
+  if (updatedBaseFingerprint !== plan.baseFingerprint) {
+    const changedFields = changedFingerprintFields(plan.baseFingerprint, updatedBaseFingerprint);
+    throw new Error(`Update verification failed: non-category fields changed (${changedFields.join(', ') || 'unknown'})`);
   }
   return {
     updated: true,

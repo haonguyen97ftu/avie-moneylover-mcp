@@ -60,7 +60,7 @@ test('preview and apply update tolerate Money Lover empty-address normalization'
   assert.equal(preview.after.category, 'Gia đình');
   assert.equal(preview.noChange, false);
 
-  const result = await applyTransactionUpdate(client, planY;
+  const result = await applyTransactionUpdate(client, plan);
   assert.equal(result.updated, true);
   assert.equal(result.transaction.category, 'Gia đình');
   assert.equal(client.editCalls, 1);

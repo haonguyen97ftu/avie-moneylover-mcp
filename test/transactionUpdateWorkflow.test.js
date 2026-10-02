@@ -66,6 +66,19 @@ test('preview and apply update tolerate Money Lover empty-address normalization'
   assert.equal(client.editCalls, 1);
 });
 
+test('preview and apply update tolerate Money Lover unset-reminder normalization', async () => {
+  const client = fakeClient();
+  client.setEditOverrides({ remind: false });
+  const { plan } = await previewTransactionUpdate(client, {
+    walletId: 'wallet-1', transactionId: 'tx-1', date: '2026-09-15', categoryName: 'Gia đình',
+  });
+
+  const result = await applyTransactionUpdate(client, plan);
+  assert.equal(result.updated, true);
+  assert.equal(result.transaction.category, 'Gia đình');
+  assert.equal(client.editCalls, 1);
+});
+
 test('post-write verification reports only privacy-safe changed field names', async () => {
   const client = fakeClient();
   client.setEditOverrides({ note: 'server-normalized-note' });

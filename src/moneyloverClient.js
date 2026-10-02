@@ -340,6 +340,47 @@ export class MoneyloverClient {
       },
     });
   }
+
+  async editTransaction({ walletId, transaction, runtimeCategoryId }) {
+    walletId = ensureString(walletId, 'walletId');
+    const id = ensureString(transaction?._id ?? transaction?.id, 'transactionId');
+    const existingAccountId = transaction?.account?._id ?? transaction?.account?.id ?? transaction?.account;
+    if (String(existingAccountId) !== walletId) throw new Error('transaction account does not match walletId');
+    const category = ensureString(runtimeCategoryId, 'runtimeCategoryId');
+    const numericAmount = Math.abs(Number(transaction?.amount));
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new Error('transaction amount must be a non-zero number');
+    const rawDisplayDate = transaction?.displayDate ?? transaction?.date;
+    const displayDate = ensureDateString(typeof rawDisplayDate === 'string' ? rawDisplayDate.slice(0, 10) : rawDisplayDate);
+
+    let address = {};
+    if (transaction?.address && typeof transaction.address === 'object') address = transaction.address;
+    if (typeof transaction?.address === 'string' && transaction.address.trim()) {
+      try { address = JSON.parse(transaction.address); } catch { throw new Error('transaction address is not valid JSON'); }
+    }
+    const event = transaction?.campaign?.[0]?._id ?? transaction?.event?._id ?? transaction?.event ?? '';
+    const parent = transaction?.parent?._id ?? transaction?.parent;
+    const body = {
+      _id: id,
+      with: normalizeWith(transaction?.with),
+      account: walletId,
+      category,
+      amount: numericAmount,
+      note: transaction?.note ?? '',
+      displayDate,
+      event,
+      exclude_report: Boolean(transaction?.exclude_report),
+      longtitude: transaction?.longtitude ?? 0,
+      latitude: transaction?.latitude ?? 0,
+      addressName: address?.name ?? '',
+      addressDetails: address?.details ?? '',
+      addressIcon: address?.icon ?? '',
+      remind: transaction?.remind,
+      image: transaction?.images?.[0] ?? transaction?.image ?? '',
+    };
+    if (parent) body.parent = parent;
+
+    return this.#request('/transaction/edit', { walletId, browserWrite: true, body });
+  }
 }
 
 export { MoneyloverApiError, isJwtExpired };

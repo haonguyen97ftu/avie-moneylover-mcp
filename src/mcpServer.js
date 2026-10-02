@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { MoneyloverClient } from './moneyloverClient.js';
 import { previewBatch, importBatch } from './batchWorkflow.js';
 import { PreviewStore } from './previewStore.js';
+import { UpdatePreviewStore } from './updatePreviewStore.js';
+import { previewTransactionUpdate, applyTransactionUpdate } from './transactionUpdateWorkflow.js';
 import { readCachedToken, writeCachedToken, clearCachedToken } from './tokenCache.js';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -165,7 +167,7 @@ const statementInput = {
   })).min(1).max(MAX_BATCH_ROWS),
 };
 
-export function createMoneyloverMcpServer({ previewStore = new PreviewStore() } = {}) {
+export function createMoneyloverMcpServer({ previewStore = new PreviewStore(), updatePreviewStore = new UpdatePreviewStore() } = {}) {
   const server = new McpServer(
     { name: 'avie-moneylover-mcp', version: '1.1.0' },
     { instructions: 'Private Money Lover connector. Read freely. Preview every transaction or statement before writing. Never ask the user for secrets in chat. Only write after explicit confirmation.' }
@@ -265,6 +267,31 @@ export function createMoneyloverMcpServer({ previewStore = new PreviewStore() } 
       browserWrite: client.getBrowserWriteStatus(),
     };
   }), 'Write context checked'));
+
+  register('preview_update_transaction', {
+    title: 'Preview transaction update', description: 'Preview a category-only update for one existing transaction without writing. Returns a short-lived preview ID.', inputSchema: {
+      walletId: z.string().min(1), transactionId: z.string().min(1), date: z.string().regex(DATE),
+      categoryId: z.string().min(1).optional(), categoryName: z.string().min(1).optional(), runtimeCategoryId: z.string().min(1).optional(),
+    }, annotations: readAnnotations,
+  }, async (input) => ok(await withClient(async (client) => {
+    const { plan, preview } = await previewTransactionUpdate(client, input);
+    return updatePreviewStore.create({ plan, preview });
+  }), 'Transaction update preview ready. Review it, then call update_transaction with confirmation UPDATE.'));
+
+  register('update_transaction', {
+    title: 'Update transaction', description: 'Apply exactly one previously previewed category update. Requires literal UPDATE and blocks stale, inaccessible, or non-owner transactions.', inputSchema: {
+      previewId: z.string().uuid(), confirmation: z.literal('UPDATE'),
+    }, annotations: writeAnnotations,
+  }, async ({ previewId }) => {
+    const entry = updatePreviewStore.startUpdate(previewId);
+    try {
+      const result = await withClient((client) => applyTransactionUpdate(client, entry.plan));
+      return ok(updatePreviewStore.complete(previewId, result), 'Transaction update completed and verified');
+    } catch (error) {
+      updatePreviewStore.fail(previewId, error);
+      throw error;
+    }
+  });
 
   register('preview_statement', {
     title: 'Preview statement import', description: `Validate and reconcile up to ${MAX_BATCH_ROWS} transactions without writing.`, inputSchema: statementInput, annotations: readAnnotations,

@@ -20,6 +20,7 @@ Unofficial Money Lover integration for three workflows:
 - Resolve Money Lover `user_category_v2` source IDs to runtime IDs using transaction history
 - Preview a single transaction without writing
 - Add a transaction with duplicate protection
+- Preview and apply category-only transaction updates without delete/recreate workarounds
 - Preview a bank/card statement batch
 - Reconcile expense − income against a statement total
 - Flag exact duplicates, probable duplicates, unresolved categories, and review rows
@@ -138,6 +139,7 @@ Observed endpoints:
 | `getCategories(walletId)` | POST | `/api/category/list` |
 | `getTransactions(...)` | POST | `/api/transaction/list` |
 | `addTransaction(...)` | POST | `/api/transaction/add` |
+| `editTransaction(...)` | POST | `/api/transaction/edit` |
 
 Writes may require browser-like headers and a current Cloudflare session. Supported environment variables include:
 
@@ -186,6 +188,14 @@ The importer refuses to write when:
 - confirmation is not exactly `IMPORT`
 
 Amounts must be positive numbers.
+
+Single-transaction category updates use a separate safety workflow:
+
+1. Call `preview_update_transaction` with the wallet, transaction, current date, and target category.
+2. Review the returned before/after category and short-lived `previewId`.
+3. Call `update_transaction` with that `previewId` and literal confirmation `UPDATE`.
+
+The update is blocked if the authenticated session is not the wallet owner or if the transaction changed after preview. The connector uses Money Lover's observed `/transaction/edit` endpoint, preserves the existing transaction ID and non-category fields, and reads the transaction back to verify the result.
 
 ## Category v2
 

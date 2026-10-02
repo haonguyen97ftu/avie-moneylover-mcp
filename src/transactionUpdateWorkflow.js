@@ -54,6 +54,15 @@ function normalizedAddress(transaction) {
   return Object.values(normalized).every((value) => value === '') ? {} : normalized;
 }
 
+function normalizedRemind(transaction) {
+  const remind = transaction?.remind;
+  if (remind == null || remind === false) return null;
+  if (typeof remind === 'string' && remind.trim() === '') return null;
+  if (Array.isArray(remind) && remind.length === 0) return null;
+  if (typeof remind === 'object' && Object.keys(remind).length === 0) return null;
+  return remind;
+}
+
 function changedFingerprintFields(before, after) {
   const previous = JSON.parse(before);
   const current = JSON.parse(after);
@@ -78,7 +87,10 @@ function transactionFingerprint(transaction, { includeCategory = true } = {}) {
     latitude: transaction?.latitude ?? 0,
     address: normalizedAddress(transaction),
     image: transaction?.images?.[0] ?? transaction?.image ?? '',
-    remind: transaction?.remind ?? null,
+    // The edit endpoint may rewrite an unset reminder as false, an empty
+    // string, array, or object. These all mean "no reminder" and must not
+    // make a category-only update look like it changed unrelated data.
+    remind: normalizedRemind(transaction),
     parent: transaction?.parent?._id ?? transaction?.parent ?? null,
   };
   if (includeCategory) fingerprint.categoryIds = categoryIds(transaction).sort();

@@ -1,11 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createHttpServer } from '../src/httpServer.js';
 
 async function listen(server) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
   return `http://127.0.0.1:${port}`;
+}
+
+function fakeJwt(expSecondsFromNow = 3600) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'none' })}.${encode({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow })}.sig`;
+}
+
+function jsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
 test('HTTP server exposes health and protects MCP endpoint', async (t) => {
@@ -95,4 +106,70 @@ test('OAuth browser flow advertises and returns issuer identification', async (t
   assert.match(deniedHtml, /MCP_OWNER_PASSWORD/);
   assert.doesNotMatch(deniedHtml, /value="wrong-password"/);
   assert.deepEqual(events, ['[oauth] authorization_succeeded', '[oauth] authorization_failed reason=incorrect_password']);
+});
+
+test('HTTP keeps update previews across stateless MCP requests', async (t) => {
+  const priorAllowInsecure = process.env.ALLOW_INSECURE_NO_AUTH;
+  const priorToken = process.env.MONEYLOVER_ACCESS_TOKEN;
+  const priorFetch = global.fetch;
+  process.env.ALLOW_INSECURE_NO_AUTH = 'true';
+  process.env.MONEYLOVER_ACCESS_TOKEN = fakeJwt();
+
+  let editCalls = 0;
+  let current = {
+    _id: 'tx-1', account: { _id: 'wallet-1' }, amount: -100, note: 'test',
+    displayDate: '2026-09-15T00:00:00.000Z', with: [], campaign: [], exclude_report: false,
+    longtitude: 0, latitude: 0, address: '', images: [],
+    category: { _id: 'runtime-shopping', name: 'Mua sắm', categories: ['source-shopping'] },
+  };
+  const observedFamily = {
+    _id: 'tx-family', account: { _id: 'wallet-1' }, amount: -1, note: 'mapping',
+    displayDate: '2026-09-01T00:00:00.000Z', with: [], campaign: [], exclude_report: false,
+    longtitude: 0, latitude: 0, address: '', images: [],
+    category: { _id: 'runtime-family', name: 'Gia đình', categories: ['source-family'] },
+  };
+  global.fetch = async (url, init) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === '127.0.0.1') return priorFetch(url, init);
+    if (parsed.pathname.endsWith('/user/info')) return jsonResponse({ error: 0, data: { _id: 'user-1', tags: ['user_category_v2'] } });
+    if (parsed.pathname.endsWith('/wallet/list')) return jsonResponse({ error: 0, data: [{ _id: 'wallet-1', owner: 'user-1', name: 'Tiền mặt' }] });
+    if (parsed.pathname.endsWith('/category/list')) return jsonResponse({ error: 0, data: [{ _id: 'source-family', name: 'Gia đình', type: 2 }] });
+    if (parsed.pathname.endsWith('/transaction/list')) return jsonResponse({ error: 0, data: { transactions: [current, observedFamily] } });
+    if (parsed.pathname.endsWith('/transaction/edit')) {
+      editCalls += 1;
+      const body = JSON.parse(init.body);
+      current = { ...current, category: { _id: body.category, name: 'Gia đình', categories: ['source-family'] } };
+      return jsonResponse({ error: 0, data: current });
+    }
+    throw new Error(`Unexpected request: ${parsed.pathname}`);
+  };
+
+  const server = createHttpServer({ authMode: 'none' });
+  const base = await listen(server);
+  const client = new Client({ name: 'http-test-client', version: '1.0.0' });
+  const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`));
+  await client.connect(transport);
+
+  t.after(async () => {
+    await client.close();
+    await new Promise((resolve) => server.close(resolve));
+    global.fetch = priorFetch;
+    if (priorAllowInsecure === undefined) delete process.env.ALLOW_INSECURE_NO_AUTH;
+    else process.env.ALLOW_INSECURE_NO_AUTH = priorAllowInsecure;
+    if (priorToken === undefined) delete process.env.MONEYLOVER_ACCESS_TOKEN;
+    else process.env.MONEYLOVER_ACCESS_TOKEN = priorToken;
+  });
+
+  const previewResponse = await client.callTool({
+    name: 'preview_update_transaction',
+    arguments: { walletId: 'wallet-1', transactionId: 'tx-1', date: '2026-09-15', categoryName: 'Gia đình' },
+  });
+  const preview = previewResponse.structuredContent.result;
+  const updateResponse = await client.callTool({
+    name: 'update_transaction', arguments: { previewId: preview.previewId, confirmation: 'UPDATE' },
+  });
+
+  assert.equal(updateResponse.structuredContent.result.result.updated, true);
+  assert.equal(updateResponse.structuredContent.result.result.transaction.category, 'Gia đình');
+  assert.equal(editCalls, 1);
 });

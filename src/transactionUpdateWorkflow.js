@@ -56,10 +56,19 @@ function normalizedAddress(transaction) {
 
 function normalizedRemind(transaction) {
   const remind = transaction?.remind;
-  if (remind == null || remind === false) return null;
-  if (typeof remind === 'string' && remind.trim() === '') return null;
-  if (Array.isArray(remind) && remind.length === 0) return null;
-  if (typeof remind === 'object' && Object.keys(remind).length === 0) return null;
+  const isUnset = (value) => {
+    if (value == null || value === false || value === 0) return true;
+    if (typeof value === 'string') {
+      return ['', '0', 'false', 'null', 'undefined'].includes(value.trim().toLowerCase());
+    }
+    if (Array.isArray(value)) return value.length === 0 || value.every(isUnset);
+    if (typeof value === 'object') {
+      const values = Object.values(value);
+      return values.length === 0 || values.every(isUnset);
+    }
+    return false;
+  };
+  if (isUnset(remind)) return null;
   return remind;
 }
 

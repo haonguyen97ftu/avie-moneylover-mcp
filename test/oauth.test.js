@@ -27,8 +27,32 @@ test('OAuth authorization code uses PKCE and cannot be replayed', () => {
 
   const refreshed = server.refresh({ refreshToken: tokens.refresh_token, clientId: registered.client_id, resource: 'https://mcp.example.test' });
   assert.equal(server.verifyAccessToken(refreshed.access_token).aud, 'https://mcp.example.test');
-  assert.throws(() => server.refresh({ refreshToken: tokens.refresh_token, clientId: registered.client_id, resource: 'https://mcp.example.test' }), /already used/);
-  assert.throws(() => oauth().refresh({ refreshToken: refreshed.refresh_token, clientId: registered.client_id, resource: 'https://mcp.example.test' }), /restart/);
+  assert.equal(server.refresh({ refreshToken: tokens.refresh_token, clientId: registered.client_id, resource: 'https://mcp.example.test' }).token_type, 'Bearer');
+
+  const restartedServer = oauth();
+  const afterRestart = restartedServer.refresh({
+    refreshToken: refreshed.refresh_token,
+    clientId: registered.client_id,
+    resource: 'https://mcp.example.test',
+  });
+  assert.equal(restartedServer.verifyAccessToken(afterRestart.access_token).aud, 'https://mcp.example.test');
+});
+
+test('OAuth refresh token remains bound to its client and resource', () => {
+  const server = oauth();
+  const registered = server.registerClient({ client_name: 'ChatGPT', redirect_uris: ['https://chatgpt.com/connector/callback'] });
+  const tokens = server.issueTokens(registered.client_id, undefined, 'https://mcp.example.test');
+
+  assert.throws(() => server.refresh({
+    refreshToken: tokens.refresh_token,
+    clientId: 'different-client',
+    resource: 'https://mcp.example.test',
+  }), /client mismatch/);
+  assert.throws(() => server.refresh({
+    refreshToken: tokens.refresh_token,
+    clientId: registered.client_id,
+    resource: 'https://other.example.test',
+  }), /resource mismatch/);
 });
 
 test('OAuth rejects wrong owner password and non-HTTPS redirect', () => {

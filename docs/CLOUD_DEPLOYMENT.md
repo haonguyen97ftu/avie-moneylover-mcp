@@ -49,7 +49,7 @@ For a statement, call `preview_statement`, inspect totals and every flagged row,
 - Reads may work while writes fail because Money Lover or Cloudflare rejects a cloud IP or an expired browser cookie.
 - If that happens, refresh the Money Lover token/cookie in Railway Variables and redeploy. Never send those values through chat.
 - Railway's filesystem is ephemeral. The token cache is only a convenience; set `MONEYLOVER_ACCESS_TOKEN` directly for predictable cloud operation.
-- A service restart intentionally invalidates outstanding OAuth authorization codes and refresh tokens. If ChatGPT asks, reconnect the plugin; existing access tokens expire within one hour.
+- A service restart invalidates outstanding OAuth authorization codes. Signed access and refresh tokens remain valid when `MCP_AUTH_SECRET` and `MCP_PUBLIC_URL` are unchanged; access tokens expire within one hour and refresh tokens within 30 days.
 - A custom domain is optional; Railway's generated HTTPS domain is sufficient.
 
 Use local mode (`npm run start:stdio` or the batch scripts) as the fallback when Money Lover blocks cloud-origin writes.

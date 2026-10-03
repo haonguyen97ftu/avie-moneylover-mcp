@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -106,6 +107,72 @@ test('OAuth browser flow advertises and returns issuer identification', async (t
   assert.match(deniedHtml, /MCP_OWNER_PASSWORD/);
   assert.doesNotMatch(deniedHtml, /value="wrong-password"/);
   assert.deepEqual(events, ['[oauth] authorization_succeeded', '[oauth] authorization_failed reason=incorrect_password']);
+});
+
+test('OAuth refresh survives an HTTP server restart with the same secret', async (t) => {
+  const events = [];
+  const config = {
+    publicUrl: 'https://mcp.example.test',
+    authSecret: '0123456789abcdef0123456789abcdef',
+    ownerPassword: 'a-very-long-owner-password',
+    logger: {
+      info: (message) => events.push(message),
+      warn: (message) => events.push(message),
+    },
+  };
+  const firstServer = createHttpServer(config);
+  const firstBase = await listen(firstServer);
+  const redirectUri = 'https://chatgpt.com/connector_platform_oauth_redirect';
+  const registration = await fetch(`${firstBase}/oauth/register`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'ChatGPT', redirect_uris: [redirectUri] }),
+  }).then((response) => response.json());
+  const verifier = 'a'.repeat(64);
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const authorization = new URLSearchParams({
+    response_type: 'code', client_id: registration.client_id, redirect_uri: redirectUri,
+    code_challenge_method: 'S256', code_challenge: challenge,
+    resource: config.publicUrl, scope: 'moneylover:read moneylover:write',
+    owner_password: config.ownerPassword,
+  });
+  const approved = await fetch(`${firstBase}/oauth/authorize`, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: authorization, redirect: 'manual',
+  });
+  assert.equal(approved.status, 302);
+  const code = new URL(approved.headers.get('location')).searchParams.get('code');
+  const exchanged = await fetch(`${firstBase}/oauth/token`, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code', code, code_verifier: verifier,
+      client_id: registration.client_id, redirect_uri: redirectUri, resource: config.publicUrl,
+    }),
+  });
+  assert.equal(exchanged.status, 200);
+  const tokens = await exchanged.json();
+  await new Promise((resolve) => firstServer.close(resolve));
+
+  const restartedServer = createHttpServer(config);
+  t.after(() => new Promise((resolve) => restartedServer.close(resolve)));
+  const restartedBase = await listen(restartedServer);
+  const refreshed = await fetch(`${restartedBase}/oauth/token`, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token', refresh_token: tokens.refresh_token,
+      client_id: registration.client_id, resource: config.publicUrl,
+    }),
+  });
+
+  assert.equal(refreshed.status, 200);
+  const payload = await refreshed.json();
+  assert.equal(payload.token_type, 'Bearer');
+  assert.ok(payload.access_token);
+  assert.ok(payload.refresh_token);
+  assert.deepEqual(events, [
+    '[oauth] authorization_succeeded',
+    '[oauth] token_succeeded grant_type=authorization_code',
+    '[oauth] token_succeeded grant_type=refresh_token',
+  ]);
 });
 
 test('HTTP keeps update previews across stateless MCP requests', async (t) => {

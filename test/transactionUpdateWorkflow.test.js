@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { previewTransactionUpdate, applyTransactionUpdate } from '../src/transactionUpdateWorkflow.js';
+import { previewTransactionUpdate, applyTransactionUpdate, transactionFingerprint } from '../src/transactionUpdateWorkflow.js';
 
 function fixtureTransaction(overrides = {}) {
   return {
@@ -68,7 +68,7 @@ test('preview and apply update tolerate Money Lover empty-address normalization'
 
 test('preview and apply update tolerate Money Lover unset-reminder normalization', async () => {
   const client = fakeClient();
-  client.setEditOverrides({ remind: false });
+  client.setEditOverrides({ remind: { enabled: false, at: null, offset: 0, slots: [] } });
   const { plan } = await previewTransactionUpdate(client, {
     walletId: 'wallet-1', transactionId: 'tx-1', date: '2026-09-15', categoryName: 'Gia đình',
   });
@@ -77,6 +77,28 @@ test('preview and apply update tolerate Money Lover unset-reminder normalization
   assert.equal(result.updated, true);
   assert.equal(result.transaction.category, 'Gia đình');
   assert.equal(client.editCalls, 1);
+});
+
+test('fingerprint treats common unset reminder wire formats as equivalent', () => {
+  const base = fixtureTransaction();
+  const variants = [
+    undefined,
+    null,
+    false,
+    0,
+    '',
+    '0',
+    'false',
+    [],
+    {},
+    { enabled: false, at: null, offset: 0, slots: [] },
+  ];
+  const fingerprints = variants.map((remind) => transactionFingerprint({ ...base, remind }));
+  assert.equal(new Set(fingerprints).size, 1);
+  assert.notEqual(
+    transactionFingerprint({ ...base, remind: '2026-09-15T08:00:00.000Z' }),
+    fingerprints[0],
+  );
 });
 
 test('post-write verification reports only privacy-safe changed field names', async () => {

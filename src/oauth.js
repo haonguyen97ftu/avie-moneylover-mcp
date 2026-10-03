@@ -83,7 +83,6 @@ export class SingleUserOAuth {
     this.now = now;
     this.logger = logger;
     this.issuedAuthorizationCodes = new Map();
-    this.activeRefreshTokens = new Map();
     this.failedAuthorizationAttempts = [];
 
     let parsedPublicUrl;
@@ -207,14 +206,13 @@ export class SingleUserOAuth {
     const payload = this.verify(refreshToken, 'refresh_token');
     if (payload.client_id !== clientId) throw new Error('Refresh token client mismatch');
     if (payload.aud !== resource || resource !== this.publicUrl) throw new Error('Refresh token resource mismatch');
-    if (this.activeRefreshTokens.get(clientId) !== payload.jti) throw new Error('Refresh token already used or invalidated by a restart');
+    if (!payload.jti) throw new Error('Refresh token identifier missing');
     this.cleanupTokens();
     return this.issueTokens(clientId, payload.scope, resource);
   }
 
   issueTokens(clientId, scope = DEFAULT_SCOPES, resource = this.publicUrl) {
     const refreshJti = randomUUID();
-    this.activeRefreshTokens.set(clientId, refreshJti);
     return {
       token_type: 'Bearer',
       access_token: this.sign('access_token', { sub: 'owner', client_id: clientId, scope, aud: resource }, 3600),
@@ -355,10 +353,12 @@ export class SingleUserOAuth {
       return true;
     }
     if (url.pathname === '/oauth/token' && req.method === 'POST') {
+      let grantType = 'unknown';
       try {
         const form = await readForm(req);
+        grantType = form.get('grant_type') || 'unknown';
         let tokens;
-        if (form.get('grant_type') === 'authorization_code') {
+        if (grantType === 'authorization_code') {
           tokens = this.exchangeAuthorizationCode({
             code: form.get('code'),
             clientId: form.get('client_id'),
@@ -366,7 +366,7 @@ export class SingleUserOAuth {
             codeVerifier: form.get('code_verifier'),
             resource: form.get('resource'),
           });
-        } else if (form.get('grant_type') === 'refresh_token') {
+        } else if (grantType === 'refresh_token') {
           tokens = this.refresh({
             refreshToken: form.get('refresh_token'),
             clientId: form.get('client_id'),
@@ -375,8 +375,24 @@ export class SingleUserOAuth {
         } else {
           throw new Error('Unsupported grant_type');
         }
+        this.logger.info?.(`[oauth] token_succeeded grant_type=${grantType}`);
         json(res, 200, tokens);
       } catch (error) {
+        const message = String(error?.message ?? '');
+        const reason = /expired/i.test(message)
+          ? 'expired'
+          : /client mismatch/i.test(message)
+            ? 'client_mismatch'
+            : /resource mismatch/i.test(message)
+              ? 'resource_mismatch'
+              : /PKCE/i.test(message)
+                ? 'pkce_failed'
+                : /authorization code/i.test(message)
+                  ? 'authorization_code_invalid'
+                  : /malformed|signature|issuer|type|identifier/i.test(message)
+                    ? 'invalid_token'
+                    : 'invalid_grant';
+        this.logger.warn?.(`[oauth] token_failed grant_type=${grantType} reason=${reason}`);
         json(res, 400, { error: 'invalid_grant', error_description: error.message });
       }
       return true;
@@ -386,5 +402,3 @@ export class SingleUserOAuth {
 }
 
 export { DEFAULT_SCOPES, READ_SCOPE, WRITE_SCOPE };
-
-// Stage restart-safe OAuth refresh fix.

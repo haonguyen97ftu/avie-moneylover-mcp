@@ -39,6 +39,32 @@ test('MCP advertises preview and confirmed transaction update tools', async (t) 
   assert.equal(update.inputSchema.properties.confirmation.const, 'UPDATE');
 });
 
+test('parameterless read tools accept an omitted arguments field', async (t) => {
+  const priorToken = process.env.MONEYLOVER_ACCESS_TOKEN;
+  const priorFetch = global.fetch;
+  process.env.MONEYLOVER_ACCESS_TOKEN = fakeJwt();
+  global.fetch = async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith('/wallet/list')) {
+      return response({ error: 0, data: [{ _id: 'wallet-1', name: 'Test', owner: 'user-1' }] });
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  };
+
+  const { server, client } = await connectedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+    global.fetch = priorFetch;
+    if (priorToken === undefined) delete process.env.MONEYLOVER_ACCESS_TOKEN;
+    else process.env.MONEYLOVER_ACCESS_TOKEN = priorToken;
+  });
+
+  const result = await client.callTool({ name: 'get_wallets' });
+  assert.equal(result.isError, undefined);
+  assert.equal(result.structuredContent.result.length, 1);
+});
+
 test('MCP preview-update-confirm flow edits once and verifies through a read-back', async (t) => {
   const priorToken = process.env.MONEYLOVER_ACCESS_TOKEN;
   const priorFetch = global.fetch;

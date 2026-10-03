@@ -386,3 +386,5 @@ export class SingleUserOAuth {
 }
 
 export { DEFAULT_SCOPES, READ_SCOPE, WRITE_SCOPE };
+
+// Stage restart-safe OAuth refresh fix.

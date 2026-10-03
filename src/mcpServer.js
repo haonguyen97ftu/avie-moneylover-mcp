@@ -176,11 +176,16 @@ export function createMoneyloverMcpServer({ previewStore = new PreviewStore(), u
   const register = (name, config, handler) => {
     const requiredScopes = config.annotations?.readOnlyHint ? ['moneylover:read'] : ['moneylover:read', 'moneylover:write'];
     const securitySchemes = [{ type: 'oauth2', scopes: requiredScopes }];
+    const hasInputSchema = config.inputSchema !== undefined;
     return server.registerTool(name, {
       ...config,
       outputSchema: { result: z.unknown() },
       _meta: { ...(config._meta ?? {}), securitySchemes },
-    }, async (args, extra) => {
+    }, async (first, second) => {
+      // MCP permits omitting params.arguments. Register parameterless tools
+      // without a validation schema so clients that omit it still work.
+      const args = hasInputSchema ? first : {};
+      const extra = hasInputSchema ? second : first;
       const granted = extra?.authInfo?.scopes;
       if (Array.isArray(granted) && requiredScopes.some((scope) => !granted.includes(scope))) return insufficientScope(requiredScopes);
       try { return await handler(args); } catch (error) { return fail(error); }
@@ -188,14 +193,14 @@ export function createMoneyloverMcpServer({ previewStore = new PreviewStore(), u
   };
 
   register('get_user_info', {
-    title: 'Get Money Lover profile', description: 'Read the authenticated Money Lover profile.', inputSchema: {}, annotations: readAnnotations,
+    title: 'Get Money Lover profile', description: 'Read the authenticated Money Lover profile.', annotations: readAnnotations,
   }, async () => ok(await withClient(async (client) => {
     const user = await client.getUserInfo();
     return { id: user?._id ?? null, name: user?.name ?? user?.email ?? null, email: user?.email ?? null, categoryV2: user?.tags?.includes('user_category_v2') ?? false };
   }), 'Profile loaded'));
 
   register('get_wallets', {
-    title: 'List wallets', description: 'List wallets accessible to the authenticated user.', inputSchema: {}, annotations: readAnnotations,
+    title: 'List wallets', description: 'List wallets accessible to the authenticated user.', annotations: readAnnotations,
   }, async () => ok(await withClient(async (client) => (await client.getWallets() ?? []).map((wallet) => ({
     id: wallet?._id ?? wallet?.id, name: wallet?.name, currency: wallet?.currency?.code ?? wallet?.currency, balance: wallet?.balance, owner: wallet?.owner,
   }))), 'Wallets loaded'));
